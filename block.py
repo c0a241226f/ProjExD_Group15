@@ -10,6 +10,12 @@ WIDTH = 1100   # 画面の幅
 HEIGHT = 650   # 画面の高さ
 FPS = 60       # フレームレート（1秒あたりの更新回数）
 PADDLE_Y_OFFSET = 50  # 下からバーを上げる量
+BLOCK_ROWS = 6        # ブロックの行数
+BLOCK_COLS = 10       # ブロックの列数
+BLOCK_WIDTH = 100     # ブロックの幅
+BLOCK_HEIGHT = 30     # ブロックの高さ
+BLOCK_PADDING = 5     # ブロック間の余白
+BLOCK_TOP_MARGIN = 30  # ブロック表示の上マージンを調整
 
 # 作業ディレクトリをスクリプトのある場所に変更
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -58,7 +64,6 @@ class Paddle:
         char = self.char_img
         if self.dir < 0:
             char = pg.transform.flip(self.char_img, True, False)
-        # バー下への描画位置を少し上にずらす
         mx, my = self.rect.midbottom
         char_rect = char.get_rect(midtop=(mx, my - 5))  # 5px 上にオフセット
         screen.blit(char, char_rect)
@@ -92,6 +97,16 @@ class Ball:
             self.radius * 2, self.radius * 2
         )
 
+class Block:
+    def __init__(self, x, y, color):
+        self.rect = pg.Rect(x, y, BLOCK_WIDTH, BLOCK_HEIGHT)
+        self.color = color
+        self.alive = True
+
+    def draw(self, screen):
+        if self.alive:
+            pg.draw.rect(screen, self.color, self.rect)
+
 class HUD:
     def __init__(self, font):
         self.font = font
@@ -111,7 +126,6 @@ class Game:
         self.clock = pg.time.Clock()
 
         self.bg = Background()
-        # バーとキャラをより上に配置
         self.paddle = Paddle((WIDTH//2, HEIGHT - PADDLE_Y_OFFSET))
         self.ball = Ball((self.paddle.rect.centerx, self.paddle.rect.top - 10))
 
@@ -119,6 +133,33 @@ class Game:
         self.hud = HUD(self.font)
         self.running = True
         self.game_over_font = pg.font.Font(None, 100)
+
+        # ブロック生成（上の方に表示 & 赤ブロックのみ）
+        self.blocks: list[Block] = []
+        for row in range(BLOCK_ROWS):
+            for col in range(BLOCK_COLS):
+                x = col * (BLOCK_WIDTH + BLOCK_PADDING) + BLOCK_PADDING
+                y = row * (BLOCK_HEIGHT + BLOCK_PADDING) + BLOCK_PADDING + BLOCK_TOP_MARGIN
+                color = (255, 0, 0)  # 常に赤
+                self.blocks.append(Block(x, y, color))
+
+        # 隣接する赤いブロックを検出して出力
+        self.output_adjacent_red_blocks()
+
+    def output_adjacent_red_blocks(self):
+        directions = [(1,0), (-1,0), (0,1), (0,-1)]
+        for b in self.blocks:
+            if not b.alive or b.color != (255, 0, 0):
+                continue
+            neighbors = []
+            for dx, dy in directions:
+                nx = b.rect.x + dx*(BLOCK_WIDTH+BLOCK_PADDING)
+                ny = b.rect.y + dy*(BLOCK_HEIGHT+BLOCK_PADDING)
+                for other in self.blocks:
+                    if other.alive and other.color == (255, 0, 0) and other.rect.x == nx and other.rect.y == ny:
+                        neighbors.append((nx, ny))
+            if neighbors:
+                print(f"Adjacent red blocks at: {b.rect.x},{b.rect.y} -> {neighbors}")
 
     def run(self):
         while self.running:
@@ -147,6 +188,14 @@ class Game:
         if self.ball.get_rect().colliderect(self.paddle.rect):
             self.ball.vel.y *= -1
 
+        # ブロック衝突
+        ball_rct = self.ball.get_rect()
+        for block in self.blocks:
+            if block.alive and ball_rct.colliderect(block.rect):
+                block.alive = False
+                self.ball.vel.y *= -1
+                break
+
         if self.ball.pos.y - self.ball.radius > HEIGHT:
             self.hud.hp -= 1
             pg.time.delay(500)
@@ -157,6 +206,8 @@ class Game:
         self.bg.draw(self.screen)
         self.paddle.draw(self.screen)
         self.ball.draw(self.screen)
+        for block in self.blocks:
+            block.draw(self.screen)
         self.hud.draw(self.screen)
         pg.display.flip()
 
