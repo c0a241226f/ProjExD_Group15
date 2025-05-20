@@ -4,6 +4,7 @@ import math
 import sys
 import time
 import pygame as pg
+import pygame
 
 # --- 定数定義 ---
 WIDTH = 1100   # 画面の幅
@@ -119,6 +120,7 @@ class Game:
         self.hud = HUD(self.font)
         self.running = True
         self.game_over_font = pg.font.Font(None, 100)
+        self.game_clear_font = pg.font.Font(None, 100) # 追加 e
 
     def run(self):
         while self.running:
@@ -129,8 +131,8 @@ class Game:
             if self.hud.hp <= 0:
                 self._draw_game_over()
                 pg.display.flip()
-                pg.time.delay(3000)
-                self.running = False
+                pg.time.delay(4000)
+                self.running = False    
         pg.quit()
         sys.exit()
 
@@ -160,14 +162,43 @@ class Game:
         self.hud.draw(self.screen)
         pg.display.flip()
 
+    #gameover画面
     def _draw_game_over(self):
+        pygame.mixer.init()
+        pygame.mixer.music.load("fig/hatapon-crying-344088.mp3")
+        pygame.mixer.music.play(-1)
         overlay = pg.Surface((WIDTH, HEIGHT))
         overlay.set_alpha(200)
-        overlay.fill((0, 0, 0))
+        overlay.fill((0,0,0))
         self.screen.blit(overlay, (0, 0))
+        #こうかとん画像読み込み
+        cry_k =pg.image.load("fig/cry.png")
+        cry_k =pg.transform.rotozoom(cry_k,WIDTH,10)
+        cry_k2 =pg.transform.flip(cry_k,True,False)
         game_over_surf = self.game_over_font.render("Game Over", True, (255, 0, 0))
         rect = game_over_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+        self.screen.blit(cry_k,[WIDTH//2,HEIGHT//2-120])
+        self.screen.blit(cry_k2,[WIDTH//2-650,HEIGHT//2-120])
         self.screen.blit(game_over_surf, rect)
+        
+
+    #クリア画面
+    def _draw_game_clear(self):
+        pygame.mixer.init()
+        pygame.mixer.music.load("fig/crowd-cheering-310544.mp3")
+        pygame.mixer.music.play(-1)
+        overlay = pg.Surface((WIDTH,HEIGHT))
+        overlay.set_alpha(200)
+        overlay.fill((255,255,255))
+        self.screen.blit(overlay, (0,0))
+        happy_k =pg.image.load("fig/happy.png")
+        happy_k =pg.transform.rotozoom(happy_k,0,3)
+        happy_k =pg.transform.flip(happy_k,True,False)
+        game_clear_surf = self.game_clear_font.render("Clear!!!!!!!!!",True, (0,255, 0))
+        rect = game_clear_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+        self.screen.blit(happy_k,[WIDTH//2-100,HEIGHT//2])
+        self.screen.blit(game_clear_surf, rect)
+        
 
 
 def main():
