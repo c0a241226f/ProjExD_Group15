@@ -48,7 +48,9 @@ class Paddle:
         img = pg.image.load("fig/bar.png").convert_alpha()
         self.img = pg.transform.scale(img, (100, 15))
         self.rect = self.img.get_rect(midbottom=pos)
-        self.speed = 12
+        self.base_speed = 12
+        self.boosted_speed = 20
+        self.speed = self.base_speed
 
         # こうかとん画像の準備
         raw = pg.image.load("fig/fly.png").convert_alpha()
@@ -57,7 +59,27 @@ class Paddle:
         self.char_img = pg.transform.scale(raw, (char_w, char_h))
         self.dir = 1
 
-    def update(self, keys):
+        #加速モード
+        self.boosting = False
+        self.boost_start_time = 0
+        self.boost_duration = 10000 #10秒
+
+
+    def update(self, keys,hud:"HUD"):
+        current_time=pg.time.get_ticks()
+        if keys[pg.K_SPACE]and not self.boosting and hud.mp > 0:
+            self.boosting = True
+            self.boost_start_time = current_time
+            hud.mp -= 1 #MP消費
+        if self.boosting:
+            if current_time-self.boost_start_time<=self.boost_duration:
+                self.speed = self.boosted_speed
+            else:
+                self.boosting = False
+                self.speed = self.base_speed
+        else:
+            self.speed = self.base_speed
+        
         if keys[pg.K_LEFT] and self.rect.left > 0:
             self.rect.x -= self.speed
             self.dir = 1
@@ -204,7 +226,7 @@ class Game:
 
     def _update(self):
         keys = pg.key.get_pressed()
-        self.paddle.update(keys)
+        self.paddle.update(keys, self.hud)
         self.ball.update()
 
         if self.ball.get_rect().colliderect(self.paddle.rect):  # バー衝突　
