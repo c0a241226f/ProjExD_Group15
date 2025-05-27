@@ -184,6 +184,7 @@ class HUD:
         self.font = font
         self.hp = 3
         self.mp = 5
+        self.last_regen_time = pg.time.get_ticks()  # MP 再生用タイマー
 
     def draw(self, screen):
         hp_s = self.font.render(f"HP: {self.hp}/3", True, (255,255,255))
@@ -205,6 +206,9 @@ class Game:
         self.running = True
         self.game_over_font = pg.font.Font(None, 100)
         self.game_clear_font = pg.font.Font(None, 100) # 追加 e
+
+        # こうかとんに当たったときの爆発用のアニメーション
+        self.explosion_img = pg.image.load("fig/explosion.gif").convert_alpha()
 
         self.penetrate = False  # 貫通機能  # 貫通機能として追加
 
@@ -242,7 +246,16 @@ class Game:
             self._events()
             self._update()
             self._draw()
+
             
+            # 全てのブロックが消えたらクリア画面へ
+            if all(not block.alive for block in self.blocks):
+                self._draw_game_clear()      # クリア画面の描画
+                pg.display.flip()            # 表示を更新
+                pg.time.delay(3000)          # 3秒待機
+                self.running = False         # ループ終了
+                break
+
 
             if self.hud.hp <= 0:
                 self._draw_game_over()
@@ -271,6 +284,32 @@ class Game:
         self.paddle.update(keys, self.hud)
         self.ball.update()
         self.app.update()
+
+        #MP自動回復処理
+        current_time = pg.time.get_ticks()
+        if current_time - self.hud.last_regen_time >= 10000:  #10秒おきに
+            self.hud.last_regen_time = current_time
+            if self.hud.mp < 5:
+                self.hud.mp += 1  # 1回復する 
+
+        #こうかとんにボールが当たったら爆発&ゲームオーバー
+        mx, my = self.paddle.rect.midbottom
+        char_img = (self.paddle.char_img 
+                    if self.paddle.dir > 0 
+                    else pg.transform.flip(self.paddle.char_img, True, False))
+        char_rect = char_img.get_rect(midtop=(mx, my - 5))
+
+        if self.ball.get_rect().colliderect(char_rect):
+            # 爆発エフェクト
+            self.screen.blit(self.explosion_img, char_rect)
+            pg.display.flip()
+            pg.time.delay(1000)
+            # ゲームオーバー画面へ移行
+            self._draw_game_over()
+            pg.display.flip()
+            pg.time.delay(3000)
+            self.running = False
+            return
 
         if self.ball.get_rect().colliderect(self.paddle.rect):  # バー衝突　
             self.ball.vel.y *= -1
