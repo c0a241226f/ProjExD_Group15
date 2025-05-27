@@ -47,9 +47,11 @@ class Background:
 class Paddle:
     def __init__(self, pos):
         # バー画像の読み込み
-        img = pg.image.load("fig/bar.png").convert_alpha()
-        self.img = pg.transform.scale(img, (100, 15))
-        self.rect = self.img.get_rect(midbottom=pos)
+        self.width = 120
+        self.height = 15
+        self.rect = pg.Rect(0, 0, self.width, self.height)
+        self.rect.midbottom = pos
+
         self.base_speed = 12
         self.boosted_speed = 20
         self.speed = self.base_speed
@@ -90,7 +92,9 @@ class Paddle:
             self.dir = -1
 
     def draw(self, screen):
-        screen.blit(self.img, self.rect)
+        pg.draw.rect(screen, (0, 100, 255), self.rect, border_radius=self.rect.height // 2)
+
+
         char = self.char_img
         if self.dir < 0:
             char = pg.transform.flip(self.char_img, True, False)
