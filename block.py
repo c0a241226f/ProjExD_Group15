@@ -98,6 +98,15 @@ class Ball:
         )
 
 class Block:
+    """
+    ゲーム内のブロックを表すクラス。
+
+    Attributes:
+        rect (pg.Rect): ブロックの位置とサイズを示す矩形。
+        color (tuple[int, int, int]): ブロックのRGB色。
+        alive (bool): ブロックが生存中かどうかのフラグ。
+    """
+      
     def __init__(self, x, y, color):
         self.rect = pg.Rect(x, y, BLOCK_WIDTH, BLOCK_HEIGHT)
         self.color = color
