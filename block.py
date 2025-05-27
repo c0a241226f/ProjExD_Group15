@@ -10,6 +10,18 @@ WIDTH = 1100   # 画面の幅
 HEIGHT = 650   # 画面の高さ
 FPS = 60       # フレームレート（1秒あたりの更新回数）
 PADDLE_Y_OFFSET = 50  # 下からバーを上げる量
+BLOCK_ROWS = 6        # ブロックの行数
+BLOCK_COLS = 10       # ブロックの列数
+BLOCK_WIDTH = 100     # ブロックの幅
+BLOCK_HEIGHT = 30     # ブロックの高さ
+BLOCK_PADDING = 5     # ブロック間の余白
+BLOCK_TOP_MARGIN = 30  # ブロック表示の上マージンを調整
+BLOCK_ROWS = 6        # ブロックの行数
+BLOCK_COLS = 10       # ブロックの列数
+BLOCK_WIDTH = 100     # ブロックの幅
+BLOCK_HEIGHT = 30     # ブロックの高さ
+BLOCK_PADDING = 5     # ブロック間の余白
+BLOCK_TOP_MARGIN = 30  # ブロック表示の上マージンを調整
 
 # 作業ディレクトリをスクリプトのある場所に変更
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -80,7 +92,6 @@ class Paddle:
         char = self.char_img
         if self.dir < 0:
             char = pg.transform.flip(self.char_img, True, False)
-        # バー下への描画位置を少し上にずらす
         mx, my = self.rect.midbottom
         char_rect = char.get_rect(midtop=(mx, my - 5))  # 5px 上にオフセット
         screen.blit(char, char_rect)
@@ -114,6 +125,25 @@ class Ball:
             self.radius * 2, self.radius * 2
         )
 
+class Block:
+    """
+    ゲーム内のブロックを表すクラス。
+
+    Attributes:
+        rect (pg.Rect): ブロックの位置とサイズを示す矩形。
+        color (tuple[int, int, int]): ブロックのRGB色。
+        alive (bool): ブロックが生存中かどうかのフラグ。
+    """
+      
+    def __init__(self, x, y, color):
+        self.rect = pg.Rect(x, y, BLOCK_WIDTH, BLOCK_HEIGHT)
+        self.color = color
+        self.alive = True
+
+    def draw(self, screen):
+        if self.alive:
+            pg.draw.rect(screen, self.color, self.rect)
+
 class HUD:
     def __init__(self, font):
         self.font = font
@@ -133,7 +163,6 @@ class Game:
         self.clock = pg.time.Clock()
 
         self.bg = Background()
-        # バーとキャラをより上に配置
         self.paddle = Paddle((WIDTH//2, HEIGHT - PADDLE_Y_OFFSET))
         self.ball = Ball((self.paddle.rect.centerx, self.paddle.rect.top - 10))
 
@@ -141,6 +170,35 @@ class Game:
         self.hud = HUD(self.font)
         self.running = True
         self.game_over_font = pg.font.Font(None, 100)
+
+        self.penetrate = False  # 貫通機能  # 貫通機能として追加
+
+        # ブロック生成（上の方に表示 & 赤ブロックのみ）
+        self.blocks: list[Block] = []
+        for row in range(BLOCK_ROWS):
+            for col in range(BLOCK_COLS):
+                x = col * (BLOCK_WIDTH + BLOCK_PADDING) + BLOCK_PADDING
+                y = row * (BLOCK_HEIGHT + BLOCK_PADDING) + BLOCK_PADDING + BLOCK_TOP_MARGIN
+                color = (255, 0, 0)  # 常に赤
+                self.blocks.append(Block(x, y, color))
+
+        # 隣接する赤いブロックを検出して出力
+        self.output_adjacent_red_blocks()
+
+    def output_adjacent_red_blocks(self):
+        directions = [(1,0), (-1,0), (0,1), (0,-1)]
+        for b in self.blocks:
+            if not b.alive or b.color != (255, 0, 0):
+                continue
+            neighbors = []
+            for dx, dy in directions:
+                nx = b.rect.x + dx*(BLOCK_WIDTH+BLOCK_PADDING)
+                ny = b.rect.y + dy*(BLOCK_HEIGHT+BLOCK_PADDING)
+                for other in self.blocks:
+                    if other.alive and other.color == (255, 0, 0) and other.rect.x == nx and other.rect.y == ny:
+                        neighbors.append((nx, ny))
+            if neighbors:
+                print(f"Adjacent red blocks at: {b.rect.x},{b.rect.y} -> {neighbors}")
 
     def run(self):
         while self.running:
@@ -160,25 +218,51 @@ class Game:
         for e in pg.event.get():
             if e.type == pg.QUIT:
                 self.running = False
+        keys = pg.key.get_pressed()  # Enterキーで貫通開始  # 貫通機能として追加↓
+        if keys[pg.K_RETURN] and self.hud.mp >= 5 and not self.penetrate:
+            self.hud.mp -= 5
+            self.penetrate = True
+            self.ball.color = (255, 255, 100)  # 貫通中の色変化  # 貫通機能として追加↑
 
     def _update(self):
         keys = pg.key.get_pressed()
         self.paddle.update(keys, self.hud)
         self.ball.update()
 
-        if self.ball.get_rect().colliderect(self.paddle.rect):
+        if self.ball.get_rect().colliderect(self.paddle.rect):  # バー衝突　
             self.ball.vel.y *= -1
+            if self.penetrate:  # 貫通機能として追加↓
+                self.penetrate = False  # バーに当たったら貫通解除
+                self.ball.color = (255, 100, 100)  # 貫通機能として追加↑
 
+        # ブロック衝突
+        ball_rct = self.ball.get_rect()
+        for block in self.blocks:
+            if not block.alive:
+                continue
+            if ball_rct.colliderect(block.rect):
+                block.alive = False
+                # 貫通中でなければ反転  # 貫通機能として追加↓
+                if not self.penetrate:  # 貫通機能として追加↑
+                    self.ball.vel.y *= -1
+                break
+
+        # 画面下へ落ちたらHP減
         if self.ball.pos.y - self.ball.radius > HEIGHT:
             self.hud.hp -= 1
-            pg.time.delay(500)
+            self.penetrate = False  # 貫通解除  # 貫通機能として追加
             self.ball = Ball((self.paddle.rect.centerx, self.paddle.rect.top - 10))
+            pg.time.delay(500)
 
     def _draw(self):
         self.screen.fill((0, 0, 0))
         self.bg.draw(self.screen)
         self.paddle.draw(self.screen)
         self.ball.draw(self.screen)
+        for block in self.blocks:
+            block.draw(self.screen)
+        for block in self.blocks:
+            block.draw(self.screen)
         self.hud.draw(self.screen)
         pg.display.flip()
 
@@ -190,7 +274,6 @@ class Game:
         game_over_surf = self.game_over_font.render("Game Over", True, (255, 0, 0))
         rect = game_over_surf.get_rect(center=(WIDTH // 2, HEIGHT // 2))
         self.screen.blit(game_over_surf, rect)
-
 
 def main():
     pg.init()
