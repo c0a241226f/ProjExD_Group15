@@ -4,7 +4,7 @@ import math
 import sys
 import time
 import pygame as pg
-import pygame
+import pygame 
 
 # --- 定数定義 ---
 WIDTH = 1100   # 画面の幅
