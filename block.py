@@ -201,11 +201,11 @@ class Game:
             self.hud.hp -= 1
             pg.time.delay(500)
             self.ball = Ball((self.paddle.rect.centerx, self.paddle.rect.top - 10))
-            self.app.ap_y = -200
+            self.app.ap_y = -400
             self.app.ap_x = random.randint(100,2300)
             #リンゴが落ちたときに再度落ちてくる
         if self.app.ap_y >= 700:
-            self.app.ap_y = -200
+            self.app.ap_y = -400
             self.app.ap_x = random.randint(100,2300)
 
     def _draw(self):
