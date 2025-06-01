@@ -9,7 +9,7 @@ import pygame
 # --- 定数定義 ---
 WIDTH = 1100   # 画面の幅
 HEIGHT = 650   # 画面の高さ
-FPS = 60       # フレームレート（1秒あたりの更新回数）
+FPS = 60       # フレームレート
 PADDLE_Y_OFFSET = 50  # 下からバーを上げる量
 BLOCK_ROWS = 6        # ブロックの行数
 BLOCK_COLS = 10       # ブロックの列数
@@ -47,7 +47,7 @@ class Background:
 class Paddle:
     def __init__(self, pos):
         # バー画像の読み込み
-        self.width = 120
+        self.width = 130
         self.height = 15
         self.rect = pg.Rect(0, 0, self.width, self.height)
         self.rect.midbottom = pos
@@ -64,6 +64,7 @@ class Paddle:
         self.dir = 1
 
         #加速モード
+        self.speedup_sound = pg.mixer.Sound("fig/スピードアップ.mp3")
         self.boosting = False
         self.boost_start_time = 0
         self.boost_duration = 10000 #10秒
@@ -75,6 +76,7 @@ class Paddle:
             self.boosting = True
             self.boost_start_time = current_time
             hud.mp -= 1 #MP消費
+            self.speedup_sound.play()  # 加速音
         if self.boosting:
             if current_time-self.boost_start_time<=self.boost_duration:
                 self.speed = self.boosted_speed
@@ -86,10 +88,10 @@ class Paddle:
         
         if keys[pg.K_LEFT] and self.rect.left > 0:
             self.rect.x -= self.speed
-            self.dir = 1
+            self.dir = 1  # 向きを左と記録
         if keys[pg.K_RIGHT] and self.rect.right < WIDTH:
             self.rect.x += self.speed
-            self.dir = -1
+            self.dir = -1  #向きを右と記録
 
     def draw(self, screen):
         pg.draw.rect(screen, (0, 100, 255), self.rect, border_radius=self.rect.height // 2)
@@ -149,8 +151,6 @@ class Ringo:  #りんごのクラス
         
             
     def draw(self,screen):
-        
-        # pg.draw.circle(screen,self.color,(self.ap_x, int(self.ap_y)),self.ap_rad)
         app_img = pg.image.load("fig/apple.png")
         app_img = pg.transform.scale(app_img,(60,60))
         screen.blit(app_img,(self.ap_x, int(self.ap_y)))
@@ -199,6 +199,7 @@ class HUD:
 class Game:
     def __init__(self):
         pg.display.set_caption("ブロック崩し")
+        self.break_sound = pg.mixer.Sound("fig/割れる.mp3")
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         self.clock = pg.time.Clock()
         self.bg = Background()
@@ -209,18 +210,21 @@ class Game:
         self.hud = HUD(self.font)
         self.running = True
         self.game_over_font = pg.font.Font(None, 100)
-        self.game_clear_font = pg.font.Font(None, 100) # 追加 e
+        self.game_clear_font = pg.font.Font(None, 100) # 追加
 
         # こうかとんに当たったときの爆発用のアニメーション
         self.explosion_img = pg.image.load("fig/explosion.gif").convert_alpha()
 
         self.penetrate = False  # 貫通機能  # 貫通機能として追加
 
-        # ブロック生成（上の方に表示 & 赤ブロックのみ）
+        # ブロックの全体幅を計算
+        total_block_width = BLOCK_COLS * BLOCK_WIDTH + (BLOCK_COLS - 1) * BLOCK_PADDING
+        x_middle = (WIDTH - total_block_width) // 2  # 中央に寄せる
+        # ブロック生成（中央揃え & 赤ブロックのみ）
         self.blocks: list[Block] = []
         for row in range(BLOCK_ROWS):
             for col in range(BLOCK_COLS):
-                x = col * (BLOCK_WIDTH + BLOCK_PADDING) + BLOCK_PADDING
+                x = x_middle + col * (BLOCK_WIDTH + BLOCK_PADDING)
                 y = row * (BLOCK_HEIGHT + BLOCK_PADDING) + BLOCK_PADDING + BLOCK_TOP_MARGIN
                 color = (255, 0, 0)  # 常に赤
                 self.blocks.append(Block(x, y, color))
@@ -282,6 +286,8 @@ class Game:
             self.hud.mp -= 5
             self.penetrate = True
             self.ball.color = (255, 255, 100)  # 貫通中の色変化  # 貫通機能として追加↑
+            pg.mixer.init()
+            pg.mixer.Sound("fig/貫通.mp3").play()  # 貫通音
 
     def _update(self):
         keys = pg.key.get_pressed()
@@ -302,12 +308,18 @@ class Game:
                     if self.paddle.dir > 0 
                     else pg.transform.flip(self.paddle.char_img, True, False))
         char_rect = char_img.get_rect(midtop=(mx, my - 5))
+        # 当たり判定を縮小（上下左右 10px 縮める例）
+        reduced_rect = char_rect.inflate(-20, -20)  # 幅・高さを小さくする
 
-        if self.ball.get_rect().colliderect(char_rect):
+        if self.ball.get_rect().colliderect(reduced_rect):
+            #  爆発音
+            pg.mixer.Sound("fig/爆発1.mp3").play()
+
             # 爆発エフェクト
             self.screen.blit(self.explosion_img, char_rect)
             pg.display.flip()
             pg.time.delay(1000)
+
             # ゲームオーバー画面へ移行
             self._draw_game_over()
             pg.display.flip()
@@ -321,9 +333,10 @@ class Game:
                 self.penetrate = False  # バーに当たったら貫通解除
                 self.ball.color = (255, 100, 100)  # 貫通機能として追加↑
         
-        if self.app.get_rect().colliderect(self.paddle.rect):
+        if self.app.get_rect().colliderect(self.paddle.rect):  # パドル（バー）とりんごの衝突判定
             if self.hud.hp < 3 :
-                self.hud.hp += 1
+                self.hud.hp += 1  #HPを回復
+                pg.mixer.Sound("fig/回復.mp3").play()  # 回復音
             else :
                 None
             self.app.ap_x = random.randint(100,2300)
@@ -338,8 +351,9 @@ class Game:
         for block in self.blocks:
             if not block.alive:
                 continue
-            if ball_rct.colliderect(block.rect):
-                block.alive = False
+            if ball_rct.colliderect(block.rect):  #ボールとブロックの衝突判定
+                block.alive = False  # ボールが消える
+                self.break_sound.play()  # 割れる音
                 # 貫通中でなければ反転  # 貫通機能として追加↓
                 if not self.penetrate:  # 貫通機能として追加↑
                     self.ball.vel.y *= -1
@@ -430,6 +444,12 @@ class Game:
 
 def main():
     pg.init()
+    pygame.init()
+    pygame.mixer.init()
+
+    # BGMの読み込みと再生（ループ）
+    pygame.mixer.music.load("fig/Space.mp3")
+    pygame.mixer.music.play(-1)  # -1で無限ループ
     Game().run()
 
 if __name__ == "__main__":
